@@ -1,5 +1,4 @@
 //go:build aix
-// +build aix
 
 // Copyright 2015 Daniel Theophanes.
 // Use of this source code is governed by a zlib-style
@@ -21,6 +20,8 @@ import (
 	"text/template"
 	"time"
 )
+
+const SERVICE_NOT_AVAILABLE_STATUS = "0513-004"
 
 const (
 	maxPathSize = 32 * 1024
@@ -123,10 +124,16 @@ func (s *aixService) Install() error {
 	if err != nil {
 		return err
 	}
+
+	serviceOwner := "0"
+	if s.Config.UserName != "" {
+		serviceOwner = s.Config.UserName
+	}
+
 	if len(s.Config.Arguments) > 0 {
-		err = run("mkssys", "-s", s.Name, "-p", path, "-a", strings.Join(s.Config.Arguments, " "), "-u", "0", "-R", "-Q", "-S", "-n", "15", "-f", "9", "-d", "-w", "30")
+		err = run("mkssys", "-s", s.Name, "-p", path, "-a", strings.Join(s.Config.Arguments, " "), "-u", serviceOwner, "-R", "-Q", "-S", "-n", "15", "-f", "9", "-d", "-w", "30")
 	} else {
-		err = run("mkssys", "-s", s.Name, "-p", path, "-u", "0", "-R", "-Q", "-S", "-n", "15", "-f", "9", "-d", "-w", "30")
+		err = run("mkssys", "-s", s.Name, "-p", path, "-u", serviceOwner, "-R", "-Q", "-S", "-n", "15", "-f", "9", "-d", "-w", "30")
 	}
 	if err != nil {
 		return err
@@ -198,23 +205,29 @@ func (s *aixService) Uninstall() error {
 
 func (s *aixService) Status() (Status, error) {
 	exitCode, out, err := runWithOutput("lssrc", "-s", s.Name)
-	if exitCode == 0 && err != nil {
-		if !strings.Contains(err.Error(), "failed with stderr") {
-			return StatusUnknown, err
-		}
+	if strings.Contains(out, SERVICE_NOT_AVAILABLE_STATUS) {
+		return StatusUnknown, ErrNotInstalled
 	}
 
-	re := regexp.MustCompile(`\s+` + regexp.QuoteMeta(s.Name) + `\s+(\w+\s+)?(\d+\s+)?(\w+)`)
+	if err != nil {
+		if exitCode != 0 {
+			out := strings.TrimSpace(string(out))
+			return StatusUnknown, fmt.Errorf("command exited %d, output: %s", exitCode, out)
+		}
+		return StatusUnknown, fmt.Errorf("command exited, output: %s", out)
+	}
+
+	re := regexp.MustCompile(`(?m)^\s*` + regexp.QuoteMeta(s.Name) + `\s+(\S+\s+)?(\d+\s+)?(\w+)`)
 	matches := re.FindStringSubmatch(out)
 	if len(matches) == 4 {
+		// matches[3] is the Status column
 		switch matches[3] {
 		case "inoperative":
 			return StatusStopped, nil
 		case "active":
 			return StatusRunning, nil
 		default:
-			fmt.Printf("Got unknown service status %s\n", matches[3])
-			return StatusUnknown, errors.New("unknown status")
+			return StatusUnknown, errors.New("unknown status: " + matches[3])
 		}
 	}
 
@@ -235,7 +248,11 @@ func (s *aixService) Start() error {
 }
 
 func (s *aixService) Stop() error {
-	return run("stopsrc", "-s", s.Name)
+	_, output, err := runWithOutput("stopsrc", "-s", s.Name)
+	if strings.Contains(output, SERVICE_NOT_AVAILABLE_STATUS) {
+		return nil
+	}
+	return err
 }
 
 func (s *aixService) Restart() error {

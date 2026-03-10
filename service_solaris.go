@@ -186,7 +186,7 @@ func (s *solarisService) Status() (Status, error) {
 		return StatusUnknown, ErrNotInstalled
 	}
 
-	re := regexp.MustCompile(`(degraded|disabled|legacy_run|maintenance|offline|online)\s+\w+` + fmri)
+	re := regexp.MustCompile(`(degraded|disabled|legacy_run|maintenance|offline|online)\s+\S+\s+` + fmri)
 	matches := re.FindStringSubmatch(out)
 	if len(matches) == 2 {
 		status := string(matches[1])
@@ -249,7 +249,7 @@ var manifest = `<?xml version="1.0"?>
 	name='{{.Prefix}}/{{.Name}}'
 	type='service'
 	version='1'>
-	
+
 	<create_default_instance enabled='false' />
 
 	<single_instance />
@@ -292,7 +292,7 @@ var manifest = `<?xml version="1.0"?>
                 <propval name='duration' type='astring' value='transient' />
         </property_group>
 	-->
-	
+
 	<stability value='Unstable' />
 
 	<template>
