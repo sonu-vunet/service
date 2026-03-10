@@ -186,6 +186,11 @@ func (s *solarisService) Status() (Status, error) {
 		return StatusUnknown, ErrNotInstalled
 	}
 
+	// The regex extracts the service state from 'svcs' output.
+	// It expects the format: [STATE] [STIME/TIME] [FMRI]
+	// - matches[1]: The state (e.g., online, offline, maintenance)
+	// - \s+\S+\s+: Matches the STIME column (whitespace, non-whitespace chars, whitespace)
+	// - fmri: Matches the specific service identifier at the end of the line
 	re := regexp.MustCompile(`(degraded|disabled|legacy_run|maintenance|offline|online)\s+\S+\s+` + fmri)
 	matches := re.FindStringSubmatch(out)
 	if len(matches) == 2 {

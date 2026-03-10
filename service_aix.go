@@ -125,6 +125,7 @@ func (s *aixService) Install() error {
 		return err
 	}
 
+	// Add the user to the configuration so that the service process is owned by the user when it is run.
 	serviceOwner := "0"
 	if s.Config.UserName != "" {
 		serviceOwner = s.Config.UserName
@@ -217,6 +218,12 @@ func (s *aixService) Status() (Status, error) {
 		return StatusUnknown, fmt.Errorf("command exited, output: %s", out)
 	}
 
+	// The regex parses the 'lssrc' output line for the specific service.
+	// It matches: ^[whitespace][service_name][whitespace][optional_group][whitespace][optional_pid][whitespace][status]
+	// - matches[0]: full line
+	// - matches[1]: optional Group column (e.g., "tcpip")
+	// - matches[2]: optional PID column (only present if service is active)
+	// - matches[3]: Status column (e.g., "active", "inoperative")
 	re := regexp.MustCompile(`(?m)^\s*` + regexp.QuoteMeta(s.Name) + `\s+(\S+\s+)?(\d+\s+)?(\w+)`)
 	matches := re.FindStringSubmatch(out)
 	if len(matches) == 4 {
