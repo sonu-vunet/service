@@ -21,7 +21,10 @@ import (
 	"time"
 )
 
-const SERVICE_NOT_AVAILABLE_STATUS = "0513-004"
+const (
+	SERVICE_NOT_RUNNING_STATUS   = "0513-004"
+	SERVICE_NOT_INSTALLED_STATUS = "0513-085"
+)
 
 const (
 	maxPathSize = 32 * 1024
@@ -206,7 +209,7 @@ func (s *aixService) Uninstall() error {
 
 func (s *aixService) Status() (Status, error) {
 	exitCode, out, err := runWithOutput("lssrc", "-s", s.Name)
-	if strings.Contains(out, SERVICE_NOT_AVAILABLE_STATUS) {
+	if strings.Contains(out, SERVICE_NOT_INSTALLED_STATUS) {
 		return StatusUnknown, ErrNotInstalled
 	}
 
@@ -256,7 +259,7 @@ func (s *aixService) Start() error {
 
 func (s *aixService) Stop() error {
 	_, output, err := runWithOutput("stopsrc", "-s", s.Name)
-	if strings.Contains(output, SERVICE_NOT_AVAILABLE_STATUS) {
+	if strings.Contains(output, SERVICE_NOT_RUNNING_STATUS) {
 		return nil
 	}
 	return err
